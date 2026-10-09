@@ -1,0 +1,75 @@
+# Tests on every push and pull request. The Spark job needs no Databricks workspace; the bundle job
+# validates against one only when the repository has workspace secrets.
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  unit:
+    name: Unit tests (Python ${{ matrix.python }})
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python: ["3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python }}
+      - run: pip install -e ".[ml,dev]"
+      - run: pytest tests/unit -q
+
+  spark:
+    name: Spark and Delta Lake tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+      - run: pip install -e ".[ml,local,dev]"
+      - run: pytest tests/spark -q
+
+  designer:
+    name: Designer and generated files
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+      - run: node designer/tests/run.js
+      - run: node designer/scripts/build.js --check
+
+  wheel:
+    name: Build the wheel
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+      - run: pip install build && python -m build --wheel
+
+  bundle:
+    name: Validate the bundle
+    runs-on: ubuntu-latest
+    env:
+      DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
+      DATABRICKS_CLIENT_ID: ${{ secrets.DATABRICKS_CLIENT_ID }}
+      DATABRICKS_CLIENT_SECRET: ${{ secrets.DATABRICKS_CLIENT_SECRET }}
+    steps:
+      - name: Skip without workspace credentials
+        if: env.DATABRICKS_HOST == ''
+        run: echo "::notice title=Bundle validation skipped::Add DATABRICKS_HOST, DATABRICKS_CLIENT_ID and DATABRICKS_CLIENT_SECRET as repository secrets to validate the bundle against a workspace."
+      - uses: actions/checkout@v5
+      - uses: databricks/setup-cli@main
+        if: env.DATABRICKS_HOST != ''
+      - run: databricks bundle validate -t dev
+        if: env.DATABRICKS_HOST != ''

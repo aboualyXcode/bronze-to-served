@@ -1,0 +1,84 @@
+# Deploy to staging on every push to main and run the platform there as an integration test; deploy to
+# production when a release is published. Configure the `staging` and `production` GitHub environments
+# (production can require an approval) with a service principal's DATABRICKS_HOST, DATABRICKS_CLIENT_ID
+# and DATABRICKS_CLIENT_SECRET. Until they exist, each job skips with a notice instead of failing.
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  release:
+    types: [published]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-${{ github.event_name == 'release' && 'prod' || 'staging' }}
+  cancel-in-progress: false
+
+jobs:
+  staging:
+    if: github.event_name != 'release'
+    runs-on: ubuntu-latest
+    environment: staging
+    env:
+      DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
+      DATABRICKS_CLIENT_ID: ${{ secrets.DATABRICKS_CLIENT_ID }}
+      DATABRICKS_CLIENT_SECRET: ${{ secrets.DATABRICKS_CLIENT_SECRET }}
+    steps:
+      - name: Check for Databricks credentials
+        id: credentials
+        run: |
+          if [ -n "$DATABRICKS_HOST" ] && [ -n "$DATABRICKS_CLIENT_ID" ] && [ -n "$DATABRICKS_CLIENT_SECRET" ]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "::notice title=Deployment skipped::Add DATABRICKS_HOST, DATABRICKS_CLIENT_ID and DATABRICKS_CLIENT_SECRET to the staging environment to deploy."
+          fi
+      - uses: actions/checkout@v5
+        if: steps.credentials.outputs.configured == 'true'
+      - uses: actions/setup-python@v6
+        if: steps.credentials.outputs.configured == 'true'
+        with:
+          python-version: "3.11"
+      - run: pip install build
+        if: steps.credentials.outputs.configured == 'true'
+      - uses: databricks/setup-cli@main
+        if: steps.credentials.outputs.configured == 'true'
+      - run: databricks bundle deploy -t staging
+        if: steps.credentials.outputs.configured == 'true'
+      - name: Integration run (setup is idempotent)
+        if: steps.credentials.outputs.configured == 'true'
+        run: |
+          databricks bundle run -t staging stagedoor_setup
+          databricks bundle run -t staging stagedoor_platform
+
+  production:
+    if: github.event_name == 'release'
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
+      DATABRICKS_CLIENT_ID: ${{ secrets.DATABRICKS_CLIENT_ID }}
+      DATABRICKS_CLIENT_SECRET: ${{ secrets.DATABRICKS_CLIENT_SECRET }}
+    steps:
+      - name: Check for Databricks credentials
+        id: credentials
+        run: |
+          if [ -n "$DATABRICKS_HOST" ] && [ -n "$DATABRICKS_CLIENT_ID" ] && [ -n "$DATABRICKS_CLIENT_SECRET" ]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "::notice title=Deployment skipped::Add DATABRICKS_HOST, DATABRICKS_CLIENT_ID and DATABRICKS_CLIENT_SECRET to the production environment to deploy."
+          fi
+      - uses: actions/checkout@v5
+        if: steps.credentials.outputs.configured == 'true'
+      - uses: actions/setup-python@v6
+        if: steps.credentials.outputs.configured == 'true'
+        with:
+          python-version: "3.11"
+      - run: pip install build
+        if: steps.credentials.outputs.configured == 'true'
+      - uses: databricks/setup-cli@main
+        if: steps.credentials.outputs.configured == 'true'
+      - run: databricks bundle deploy -t prod
+        if: steps.credentials.outputs.configured == 'true'
