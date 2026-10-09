@@ -1,0 +1,273 @@
+{
+  "version": 1,
+  "job": {
+    "key": "stagedoor_platform",
+    "name": "stagedoor-platform",
+    "description": "Daily lakehouse run: land, Bronze, Silver, quality gate, Gold, features, batch scoring, drift and the CRM export.",
+    "trigger": {
+      "type": "schedule",
+      "cron": "0 0 2 * * ?",
+      "timezone": "UTC"
+    },
+    "compute": "serverless",
+    "max_concurrent_runs": 1,
+    "timeout_seconds": 10800,
+    "tags": {
+      "project": "bronze-to-served",
+      "domain": "platform"
+    },
+    "notifications": {
+      "on_failure": [
+        "${var.alert_email}"
+      ]
+    },
+    "parameters": [
+      {
+        "name": "catalog",
+        "default": "${var.catalog}"
+      },
+      {
+        "name": "schema_prefix",
+        "default": "${var.schema_prefix}"
+      },
+      {
+        "name": "lookback_days",
+        "default": "3"
+      },
+      {
+        "name": "full_refresh",
+        "default": "false"
+      },
+      {
+        "name": "simulate_upstream",
+        "default": "${var.simulate_upstream}"
+      }
+    ]
+  },
+  "nodes": [
+    {
+      "id": "land",
+      "component": "land.sample_data",
+      "task_key": "simulate_upstream_drop",
+      "params": {
+        "mode": "next_day",
+        "enabled": "{{job.parameters.simulate_upstream}}"
+      }
+    },
+    {
+      "id": "b_orders",
+      "component": "bronze.orders",
+      "task_key": "bronze_orders",
+      "params": {
+        "full_refresh": "{{job.parameters.full_refresh}}"
+      },
+      "max_retries": 1
+    },
+    {
+      "id": "b_customers",
+      "component": "bronze.customers_cdc",
+      "task_key": "bronze_customers",
+      "params": {
+        "full_refresh": "{{job.parameters.full_refresh}}"
+      },
+      "max_retries": 1
+    },
+    {
+      "id": "b_clicks",
+      "component": "bronze.clickstream",
+      "task_key": "bronze_clickstream",
+      "params": {
+        "full_refresh": "{{job.parameters.full_refresh}}"
+      },
+      "max_retries": 1
+    },
+    {
+      "id": "b_reference",
+      "component": "bronze.reference",
+      "task_key": "bronze_reference",
+      "params": {
+        "full_refresh": "{{job.parameters.full_refresh}}"
+      },
+      "max_retries": 1
+    },
+    {
+      "id": "s_orders",
+      "component": "silver.orders",
+      "task_key": "silver_orders",
+      "params": {
+        "full_refresh": "{{job.parameters.full_refresh}}"
+      },
+      "max_retries": 1
+    },
+    {
+      "id": "s_customers",
+      "component": "silver.customers",
+      "task_key": "silver_customers",
+      "params": {
+        "full_refresh": "{{job.parameters.full_refresh}}"
+      },
+      "max_retries": 1
+    },
+    {
+      "id": "s_clicks",
+      "component": "silver.clickstream",
+      "task_key": "silver_clickstream",
+      "params": {
+        "full_refresh": "{{job.parameters.full_refresh}}"
+      },
+      "max_retries": 1
+    },
+    {
+      "id": "s_reference",
+      "component": "silver.reference",
+      "task_key": "silver_reference"
+    },
+    {
+      "id": "gate",
+      "component": "quality.gate",
+      "task_key": "quality_gate"
+    },
+    {
+      "id": "g_dims",
+      "component": "gold.dimensions",
+      "task_key": "gold_dimensions"
+    },
+    {
+      "id": "g_sales",
+      "component": "gold.sales",
+      "task_key": "gold_sales",
+      "params": {
+        "lookback_days": "{{job.parameters.lookback_days}}",
+        "full_refresh": "{{job.parameters.full_refresh}}"
+      }
+    },
+    {
+      "id": "g_events",
+      "component": "gold.event_performance",
+      "task_key": "gold_event_performance"
+    },
+    {
+      "id": "g_360",
+      "component": "gold.customer_360",
+      "task_key": "gold_customer_360"
+    },
+    {
+      "id": "g_funnel",
+      "component": "gold.funnel",
+      "task_key": "gold_funnel",
+      "params": {
+        "lookback_days": "{{job.parameters.lookback_days}}",
+        "full_refresh": "{{job.parameters.full_refresh}}"
+      }
+    },
+    {
+      "id": "features",
+      "component": "ml.features",
+      "task_key": "ml_features",
+      "params": {
+        "mode": "scoring"
+      }
+    },
+    {
+      "id": "score",
+      "component": "ml.batch_inference",
+      "task_key": "batch_scoring"
+    },
+    {
+      "id": "drift",
+      "component": "ml.drift",
+      "task_key": "drift_monitor"
+    },
+    {
+      "id": "crm",
+      "component": "serve.crm_export",
+      "task_key": "crm_export"
+    }
+  ],
+  "edges": [
+    {
+      "from": "land",
+      "to": "b_orders"
+    },
+    {
+      "from": "land",
+      "to": "b_customers"
+    },
+    {
+      "from": "land",
+      "to": "b_clicks"
+    },
+    {
+      "from": "land",
+      "to": "b_reference"
+    },
+    {
+      "from": "b_orders",
+      "to": "s_orders"
+    },
+    {
+      "from": "b_customers",
+      "to": "s_customers"
+    },
+    {
+      "from": "b_clicks",
+      "to": "s_clicks"
+    },
+    {
+      "from": "b_reference",
+      "to": "s_reference"
+    },
+    {
+      "from": "s_orders",
+      "to": "gate"
+    },
+    {
+      "from": "s_customers",
+      "to": "gate"
+    },
+    {
+      "from": "s_clicks",
+      "to": "gate"
+    },
+    {
+      "from": "s_reference",
+      "to": "gate"
+    },
+    {
+      "from": "gate",
+      "to": "g_dims"
+    },
+    {
+      "from": "g_dims",
+      "to": "g_sales"
+    },
+    {
+      "from": "g_sales",
+      "to": "g_events"
+    },
+    {
+      "from": "g_sales",
+      "to": "g_360"
+    },
+    {
+      "from": "gate",
+      "to": "g_funnel"
+    },
+    {
+      "from": "g_sales",
+      "to": "features"
+    },
+    {
+      "from": "features",
+      "to": "score"
+    },
+    {
+      "from": "score",
+      "to": "drift"
+    },
+    {
+      "from": "score",
+      "to": "crm"
+    }
+  ]
+}

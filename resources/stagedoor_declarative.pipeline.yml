@@ -1,0 +1,16 @@
+# The Lakeflow Declarative Pipeline variant (serverless). It publishes to <prefix>declarative, next to the
+# job-built tables; the stagedoor_declarative_refresh job refreshes it when new files land.
+resources:
+  pipelines:
+    stagedoor_declarative:
+      name: stagedoor-declarative
+      catalog: ${var.catalog}
+      schema: ${var.schema_prefix}declarative
+      serverless: true
+      channel: CURRENT
+      continuous: false
+      configuration:
+        stagedoor.landing_path: /Volumes/${var.catalog}/${var.schema_prefix}landing/raw
+      libraries:
+        - file:
+            path: ../pipelines/stagedoor_declarative.py

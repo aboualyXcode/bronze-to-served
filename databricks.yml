@@ -1,0 +1,86 @@
+# Databricks Asset Bundle: the whole platform as code (jobs, pipeline, wheel, environments).
+#
+#   databricks bundle validate                        check the configuration
+#   databricks bundle deploy -t dev                   build the wheel, upload code, create or update everything
+#   databricks bundle run -t dev stagedoor_setup      one-off setup, then stagedoor_platform and stagedoor_ml_training
+#
+# Authenticate with `databricks auth login --host <workspace-url>` (or DATABRICKS_HOST and a service
+# principal's DATABRICKS_CLIENT_ID / DATABRICKS_CLIENT_SECRET in CI). Jobs are generated from the
+# designer templates: see designer/ and docs/09-pipeline-designer.md.
+bundle:
+  name: bronze_to_served
+
+include:
+  - resources/*.yml
+
+artifacts:
+  python_wheel:
+    type: whl
+    build: python -m build --wheel
+    path: .
+
+variables:
+  catalog:
+    description: Unity Catalog catalog that holds every schema of the platform.
+    default: stagedoor_dev
+  schema_prefix:
+    description: Prefix for schema names, for per-developer isolation in dev.
+    default: ""
+  simulate_upstream:
+    description: Let the daily job land simulated files (true until real sources deliver).
+    default: "true"
+  alert_email:
+    description: Who is emailed when a run fails.
+    default: data-platform@example.com
+  experiment_path:
+    description: MLflow experiment for training runs.
+    default: /Shared/bronze-to-served-churn
+  serving_endpoint_name:
+    description: Model Serving endpoint for the churn model.
+    default: stagedoor-churn
+  deploy_serving_endpoint:
+    description: Deploy the champion to Model Serving after a promotion.
+    default: "false"
+  serverless_environment_version:
+    description: Serverless environment version for Python tasks.
+    default: "2"
+  classic_spark_version:
+    description: Databricks Runtime for the classic-compute streaming job.
+    default: 15.4.x-scala2.12
+  node_type_id:
+    description: Worker type for classic compute (cloud specific, e.g. i3.xlarge, Standard_D4ds_v5, n2-standard-4).
+    default: i3.xlarge
+
+targets:
+  dev:
+    # Development mode prefixes resource names with [dev <you>], pauses schedules and triggers, and
+    # deploys to your home folder, so every developer gets an isolated copy.
+    mode: development
+    default: true
+    variables:
+      schema_prefix: ${workspace.current_user.short_name}_
+      alert_email: ${workspace.current_user.userName}
+      experiment_path: /Users/${workspace.current_user.userName}/bronze-to-served-churn
+      serving_endpoint_name: stagedoor-churn-${workspace.current_user.short_name}
+
+  staging:
+    mode: production
+    workspace:
+      root_path: /Workspace/Shared/.bundle/${bundle.name}/${bundle.target}
+    variables:
+      catalog: stagedoor_staging
+      deploy_serving_endpoint: "true"
+      experiment_path: /Shared/bronze-to-served-churn-staging
+      serving_endpoint_name: stagedoor-churn-staging
+
+  prod:
+    mode: production
+    workspace:
+      root_path: /Workspace/Shared/.bundle/${bundle.name}/${bundle.target}
+    variables:
+      catalog: stagedoor_prod
+      simulate_upstream: "false"
+      deploy_serving_endpoint: "true"
+    # Run production jobs as a service principal (its application ID), not as the person deploying:
+    # run_as:
+    #   service_principal_name: 00000000-0000-0000-0000-000000000000

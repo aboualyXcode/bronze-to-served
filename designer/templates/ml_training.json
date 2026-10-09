@@ -1,0 +1,136 @@
+{
+  "version": 1,
+  "job": {
+    "key": "stagedoor_ml_training",
+    "name": "stagedoor-ml-training",
+    "description": "Weekly: rebuild point-in-time features and labels, train a challenger, compare it with the champion, and promote and deploy it only if it wins.",
+    "trigger": {
+      "type": "schedule",
+      "cron": "0 0 4 ? * SUN",
+      "timezone": "UTC"
+    },
+    "compute": "serverless",
+    "max_concurrent_runs": 1,
+    "timeout_seconds": 10800,
+    "tags": {
+      "project": "bronze-to-served",
+      "domain": "ml"
+    },
+    "notifications": {
+      "on_failure": [
+        "${var.alert_email}"
+      ]
+    },
+    "parameters": [
+      {
+        "name": "catalog",
+        "default": "${var.catalog}"
+      },
+      {
+        "name": "schema_prefix",
+        "default": "${var.schema_prefix}"
+      },
+      {
+        "name": "experiment_path",
+        "default": "${var.experiment_path}"
+      },
+      {
+        "name": "deploy_endpoint",
+        "default": "${var.deploy_serving_endpoint}"
+      },
+      {
+        "name": "endpoint_name",
+        "default": "${var.serving_endpoint_name}"
+      }
+    ]
+  },
+  "nodes": [
+    {
+      "id": "features",
+      "component": "ml.features",
+      "task_key": "features_history",
+      "params": {
+        "mode": "training"
+      }
+    },
+    {
+      "id": "tset",
+      "component": "ml.training_set",
+      "task_key": "training_set"
+    },
+    {
+      "id": "train",
+      "component": "ml.train",
+      "task_key": "train",
+      "params": {
+        "experiment_path": "{{job.parameters.experiment_path}}"
+      },
+      "timeout_seconds": 3600
+    },
+    {
+      "id": "evaluate",
+      "component": "ml.evaluate",
+      "task_key": "evaluate"
+    },
+    {
+      "id": "report",
+      "component": "notebook.model_validation",
+      "task_key": "validation_report"
+    },
+    {
+      "id": "gate",
+      "component": "control.condition",
+      "task_key": "promotion_gate",
+      "condition": {
+        "op": "EQUAL_TO",
+        "left": "{{tasks.validation_report.values.promote}}",
+        "right": "true"
+      }
+    },
+    {
+      "id": "promote",
+      "component": "ml.promote",
+      "task_key": "promote"
+    },
+    {
+      "id": "deploy",
+      "component": "ml.deploy_endpoint",
+      "task_key": "deploy_endpoint",
+      "params": {
+        "enabled": "{{job.parameters.deploy_endpoint}}",
+        "endpoint_name": "{{job.parameters.endpoint_name}}"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "from": "features",
+      "to": "tset"
+    },
+    {
+      "from": "tset",
+      "to": "train"
+    },
+    {
+      "from": "train",
+      "to": "evaluate"
+    },
+    {
+      "from": "evaluate",
+      "to": "report"
+    },
+    {
+      "from": "report",
+      "to": "gate"
+    },
+    {
+      "from": "gate",
+      "to": "promote",
+      "outcome": "true"
+    },
+    {
+      "from": "promote",
+      "to": "deploy"
+    }
+  ]
+}

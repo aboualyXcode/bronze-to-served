@@ -1,0 +1,116 @@
+{
+  "version": 1,
+  "job": {
+    "key": "stagedoor_setup",
+    "name": "stagedoor-setup",
+    "description": "One-off and idempotent: Unity Catalog objects, a year of simulated landing files, and optional governance.",
+    "trigger": {
+      "type": "manual"
+    },
+    "compute": "serverless",
+    "max_concurrent_runs": 1,
+    "timeout_seconds": 7200,
+    "tags": {
+      "project": "bronze-to-served",
+      "domain": "setup"
+    },
+    "notifications": {
+      "on_failure": [
+        "${var.alert_email}"
+      ]
+    },
+    "parameters": [
+      {
+        "name": "catalog",
+        "default": "${var.catalog}"
+      },
+      {
+        "name": "schema_prefix",
+        "default": "${var.schema_prefix}"
+      },
+      {
+        "name": "create_catalog",
+        "default": "false"
+      },
+      {
+        "name": "history_days",
+        "default": "370"
+      },
+      {
+        "name": "customers",
+        "default": "5000"
+      },
+      {
+        "name": "apply_governance",
+        "default": "false"
+      },
+      {
+        "name": "analysts_group",
+        "default": ""
+      },
+      {
+        "name": "scientists_group",
+        "default": ""
+      },
+      {
+        "name": "engineers_group",
+        "default": ""
+      }
+    ]
+  },
+  "nodes": [
+    {
+      "id": "uc",
+      "component": "setup.uc_objects",
+      "task_key": "unity_catalog_objects",
+      "params": {
+        "create_catalog": "{{job.parameters.create_catalog}}"
+      }
+    },
+    {
+      "id": "land",
+      "component": "land.sample_data",
+      "task_key": "land_history",
+      "params": {
+        "mode": "history",
+        "history_days": "{{job.parameters.history_days}}",
+        "customers": "{{job.parameters.customers}}"
+      }
+    },
+    {
+      "id": "cond",
+      "component": "control.condition",
+      "task_key": "governance_enabled",
+      "condition": {
+        "op": "EQUAL_TO",
+        "left": "{{job.parameters.apply_governance}}",
+        "right": "true"
+      }
+    },
+    {
+      "id": "gov",
+      "component": "setup.governance",
+      "task_key": "apply_governance",
+      "params": {
+        "analysts_group": "{{job.parameters.analysts_group}}",
+        "scientists_group": "{{job.parameters.scientists_group}}",
+        "engineers_group": "{{job.parameters.engineers_group}}"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "from": "uc",
+      "to": "land"
+    },
+    {
+      "from": "land",
+      "to": "cond"
+    },
+    {
+      "from": "cond",
+      "to": "gov",
+      "outcome": "true"
+    }
+  ]
+}

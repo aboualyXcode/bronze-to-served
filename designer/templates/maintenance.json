@@ -1,0 +1,51 @@
+{
+  "version": 1,
+  "job": {
+    "key": "stagedoor_maintenance",
+    "name": "stagedoor-maintenance",
+    "description": "Weekly OPTIMIZE, VACUUM and ANALYZE for the busiest tables, four at a time with a for-each task. Not needed where predictive optimization is on.",
+    "trigger": {
+      "type": "schedule",
+      "cron": "0 0 5 ? * SUN",
+      "timezone": "UTC"
+    },
+    "compute": "serverless",
+    "max_concurrent_runs": 1,
+    "timeout_seconds": 7200,
+    "tags": {
+      "project": "bronze-to-served",
+      "domain": "operations"
+    },
+    "notifications": {
+      "on_failure": [
+        "${var.alert_email}"
+      ]
+    },
+    "parameters": [
+      {
+        "name": "catalog",
+        "default": "${var.catalog}"
+      },
+      {
+        "name": "schema_prefix",
+        "default": "${var.schema_prefix}"
+      }
+    ]
+  },
+  "nodes": [
+    {
+      "id": "maintain",
+      "component": "ops.maintain_table",
+      "task_key": "maintain_tables",
+      "params": {
+        "table": "{{input}}",
+        "operations": "optimize,vacuum,analyze"
+      },
+      "for_each": {
+        "inputs": "[\"silver.orders\", \"silver.order_items\", \"silver.customers\", \"silver.clickstream\", \"gold.fct_sales\", \"gold.agg_daily_sales\", \"gold.customer_360\", \"gold.funnel_daily\", \"ml.customer_features\"]",
+        "concurrency": 4
+      }
+    }
+  ],
+  "edges": []
+}

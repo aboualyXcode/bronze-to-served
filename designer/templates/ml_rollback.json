@@ -1,0 +1,62 @@
+{
+  "version": 1,
+  "job": {
+    "key": "stagedoor_ml_rollback",
+    "name": "stagedoor-ml-rollback",
+    "description": "Manual: move @champion back to @previous_champion and point the serving endpoint at it.",
+    "trigger": {
+      "type": "manual"
+    },
+    "compute": "serverless",
+    "max_concurrent_runs": 1,
+    "tags": {
+      "project": "bronze-to-served",
+      "domain": "ml"
+    },
+    "notifications": {
+      "on_failure": [
+        "${var.alert_email}"
+      ]
+    },
+    "parameters": [
+      {
+        "name": "catalog",
+        "default": "${var.catalog}"
+      },
+      {
+        "name": "schema_prefix",
+        "default": "${var.schema_prefix}"
+      },
+      {
+        "name": "deploy_endpoint",
+        "default": "${var.deploy_serving_endpoint}"
+      },
+      {
+        "name": "endpoint_name",
+        "default": "${var.serving_endpoint_name}"
+      }
+    ]
+  },
+  "nodes": [
+    {
+      "id": "rollback",
+      "component": "ml.rollback",
+      "task_key": "rollback_champion"
+    },
+    {
+      "id": "deploy",
+      "component": "ml.deploy_endpoint",
+      "task_key": "deploy_endpoint",
+      "params": {
+        "enabled": "{{job.parameters.deploy_endpoint}}",
+        "endpoint_name": "{{job.parameters.endpoint_name}}"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "from": "rollback",
+      "to": "deploy"
+    }
+  ]
+}

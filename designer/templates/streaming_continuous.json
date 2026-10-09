@@ -1,0 +1,59 @@
+{
+  "version": 1,
+  "job": {
+    "key": "stagedoor_streaming",
+    "name": "stagedoor-streaming",
+    "description": "Low-latency variant: clickstream Bronze, Silver and live engagement as always-on streams with processing-time triggers on classic compute. Pause the daily job's clickstream tasks while this runs.",
+    "trigger": {
+      "type": "continuous"
+    },
+    "compute": "job_cluster",
+    "max_concurrent_runs": 1,
+    "tags": {
+      "project": "bronze-to-served",
+      "domain": "streaming"
+    },
+    "notifications": {
+      "on_failure": [
+        "${var.alert_email}"
+      ]
+    },
+    "parameters": [
+      {
+        "name": "catalog",
+        "default": "${var.catalog}"
+      },
+      {
+        "name": "schema_prefix",
+        "default": "${var.schema_prefix}"
+      }
+    ]
+  },
+  "nodes": [
+    {
+      "id": "bronze",
+      "component": "bronze.clickstream",
+      "task_key": "clickstream_bronze_stream",
+      "params": {
+        "trigger": "processingTime=30 seconds"
+      }
+    },
+    {
+      "id": "silver",
+      "component": "silver.clickstream",
+      "task_key": "clickstream_silver_stream",
+      "params": {
+        "trigger": "processingTime=30 seconds"
+      }
+    },
+    {
+      "id": "live",
+      "component": "gold.live_engagement",
+      "task_key": "live_engagement_stream",
+      "params": {
+        "trigger": "processingTime=1 minute"
+      }
+    }
+  ],
+  "edges": []
+}

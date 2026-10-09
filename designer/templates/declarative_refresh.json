@@ -1,0 +1,42 @@
+{
+  "version": 1,
+  "job": {
+    "key": "stagedoor_declarative_refresh",
+    "name": "stagedoor-declarative-refresh",
+    "description": "The declarative variant: refresh the Lakeflow Declarative Pipeline whenever new clickstream files land (file arrival trigger).",
+    "trigger": {
+      "type": "file_arrival",
+      "url": "/Volumes/${var.catalog}/${var.schema_prefix}landing/raw/clickstream/",
+      "min_seconds": 300
+    },
+    "compute": "serverless",
+    "max_concurrent_runs": 1,
+    "tags": {
+      "project": "bronze-to-served",
+      "domain": "declarative"
+    },
+    "notifications": {
+      "on_failure": [
+        "${var.alert_email}"
+      ]
+    },
+    "parameters": [
+      {
+        "name": "catalog",
+        "default": "${var.catalog}"
+      },
+      {
+        "name": "schema_prefix",
+        "default": "${var.schema_prefix}"
+      }
+    ]
+  },
+  "nodes": [
+    {
+      "id": "refresh",
+      "component": "pipeline.declarative",
+      "task_key": "refresh_declarative_pipeline"
+    }
+  ],
+  "edges": []
+}
