@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.venv/
+build/
+dist/
+
+# Databricks Asset Bundles
+.databricks/
+
+# Local runs: generated landing files, Delta tables, checkpoints
+.local/
+spark-warehouse/
+metastore_db/
+derby.log
+
+# Editors and OS
+.idea/
+.vscode/
+.DS_Store

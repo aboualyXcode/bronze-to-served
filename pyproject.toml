@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "bronze_to_served"
+version = "0.1.0"
+description = "An end-to-end Databricks lakehouse and ML platform for Stagedoor, a fictional ticketing company."
+readme = "README.md"
+requires-python = ">=3.10"
+# Spark, Delta Lake, MLflow and the Databricks SDK are provided by the Databricks runtime or by the
+# serverless environment declared in the bundle, so the wheel itself has no hard dependencies.
+dependencies = []
+
+[project.optional-dependencies]
+ml = ["scikit-learn>=1.4", "pandas>=1.5", "numpy>=1.23"]
+databricks = ["mlflow>=2.16", "databricks-sdk>=0.30"]
+local = ["pyspark>=3.5,<4", "delta-spark>=3.2,<4"]
+dev = ["pytest>=8", "pyyaml>=6", "build>=1.2"]
+
+[project.scripts]
+# The single entry point every Python wheel task calls: b2s --task silver.orders --catalog ...
+b2s = "bronze_to_served.tasks.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+  "spark: needs a local Spark session with Delta Lake (pip install -e '.[local,ml,dev]')",
+]
