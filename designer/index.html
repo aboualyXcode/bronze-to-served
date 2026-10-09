@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Bronze to Served pipeline designer</title>
+  <meta name="description" content="Design Databricks jobs from lakehouse components, check them, and export Asset Bundle YAML.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 26 26'%3E%3Crect x='2' y='15' width='6' height='9' rx='1.5' fill='%23a0612b'/%3E%3Crect x='10' y='10' width='6' height='14' rx='1.5' fill='%236b7a8c'/%3E%3Crect x='18' y='5' width='6' height='19' rx='1.5' fill='%23b8901c'/%3E%3Ccircle cx='21' cy='2.8' r='2.4' fill='%230f766e'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Albert+Sans:wght@400;500;600;700&family=Red+Hat+Mono:wght@400;500&display=swap">
+  <link rel="stylesheet" href="css/designer.css">
+</head>
+<body>
+  <div class="app">
+    <header class="bar">
+      <div class="brand">
+        <svg width="26" height="26" viewBox="0 0 26 26" aria-hidden="true"><rect x="2" y="15" width="6" height="9" rx="1.5" fill="#a0612b"/><rect x="10" y="10" width="6" height="14" rx="1.5" fill="#6b7a8c"/><rect x="18" y="5" width="6" height="19" rx="1.5" fill="#b8901c"/><circle cx="21" cy="2.8" r="2.4" fill="#0f766e"/></svg>
+        <span>Bronze to Served</span><small>Pipeline designer</small>
+      </div>
+      <label class="start"><span>Start from</span><select id="template" aria-label="Start from a template"></select></label>
+      <span class="summary" id="summary" aria-live="polite"></span>
+      <div class="actions">
+        <button id="autowire" type="button" title="Add dependencies wherever a task reads a table another task writes">Wire by lineage</button>
+        <button id="tidy" type="button" title="Arrange tasks in dependency order">Tidy layout</button>
+        <button id="undo" type="button" title="Undo (Ctrl+Z)">Undo</button>
+        <button id="redo" type="button" title="Redo (Ctrl+Shift+Z)">Redo</button>
+        <button id="import" type="button" title="Open a design saved as JSON">Import</button>
+        <input id="import-file" type="file" accept="application/json,.json" hidden>
+        <button id="theme" type="button" aria-label="Switch between light and dark">Theme</button>
+      </div>
+    </header>
+
+    <aside class="palette" aria-label="Components">
+      <input id="search" type="search" placeholder="Find a component or table" aria-label="Find a component or table">
+      <div id="groups"></div>
+    </aside>
+
+    <main class="canvas" id="canvas" aria-label="Pipeline canvas">
+      <div class="stage" id="stage">
+        <div id="bands"></div>
+        <svg id="edges" class="edges" aria-hidden="true"></svg>
+        <div id="nodes"></div>
+      </div>
+      <p class="empty" id="empty" hidden>Add a component from the left, or start from a template.</p>
+    </main>
+
+    <aside class="side" aria-label="Details">
+      <section class="inspector" id="inspector"></section>
+      <section class="checks" aria-live="polite">
+        <h2 id="checks-title">Checks</h2>
+        <ul id="checks"></ul>
+      </section>
+    </aside>
+
+    <section class="output" aria-label="Output">
+      <div class="output-bar">
+        <div role="tablist" aria-label="Output format">
+          <button class="tab" type="button" role="tab" data-tab="yaml">Bundle YAML</button>
+          <button class="tab" type="button" role="tab" data-tab="order">Run order</button>
+          <button class="tab" type="button" role="tab" data-tab="mermaid">Mermaid</button>
+          <button class="tab" type="button" role="tab" data-tab="json">Design JSON</button>
+        </div>
+        <span class="file" id="file"></span>
+        <button id="copy" type="button" class="primary">Copy</button>
+        <button id="download" type="button">Download</button>
+      </div>
+      <pre id="code" tabindex="0" aria-label="Generated output"></pre>
+    </section>
+  </div>
+  <datalist id="refs"></datalist>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script src="js/catalog.js"></script>
+  <script src="js/templates.js"></script>
+  <script src="js/yaml.js"></script>
+  <script src="js/graph.js"></script>
+  <script src="js/bundle.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
